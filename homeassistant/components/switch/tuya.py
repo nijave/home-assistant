@@ -8,7 +8,6 @@ import voluptuous as vol
 from homeassistant.components.switch import SwitchDevice, PLATFORM_SCHEMA
 from homeassistant.const import (CONF_NAME, CONF_HOST, CONF_ID)
 import homeassistant.helpers.config_validation as cv
-import logging
 
 REQUIREMENTS = ['pytuya==1.0']
 
@@ -20,6 +19,8 @@ DEFAULT_ID = 1
 ATTR_CURRENT = 'current'
 ATTR_CURRENT_CONSUMPTION = 'current_consumption'
 ATTR_VOLTAGE = 'voltage'
+
+STATUS_UPDATE_RETRY_LIMIT = 3
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NAME): cv.string,
@@ -52,9 +53,9 @@ class TuyaDevice(SwitchDevice):
         """Initialize the Tuya switch."""
         self._device = device
         self._name = name
-        # TODO make sure state is reliably set (see 'update' method below)
-        self._state = False #device.status()['dps']['1']
         self._switchid = switchid
+        self._status = self._get_status()
+        self._state = self._status['dps']['1']
 
     @property
     def name(self):
@@ -68,14 +69,10 @@ class TuyaDevice(SwitchDevice):
 
     @property
     def device_state_attributes(self):
-        try:
-            attrs = {}
-            attrs[ATTR_CURRENT] = "{} mA".format(self._status['dps']['4'])
-            attrs[ATTR_CURRENT_CONSUMPTION] = "{} W".format(self._status['dps']['5']/10)
-            attrs[ATTR_VOLTAGE] = "{} V".format(self._status['dps']['6']/10)
-        except: # No status info
-            logging.getLogger(__name__).exception("Problem getting device state attributes")
-            attrs = None
+        attrs = {}
+        attrs[ATTR_CURRENT] = "{} mA".format(self._status['dps']['4'])
+        attrs[ATTR_CURRENT_CONSUMPTION] = "{} W".format(self._status['dps']['5']/10)
+        attrs[ATTR_VOLTAGE] = "{} V".format(self._status['dps']['6']/10)
         return attrs
 
     def turn_on(self, **kwargs):
@@ -85,28 +82,28 @@ class TuyaDevice(SwitchDevice):
     def turn_off(self, **kwargs):
         """Turn Tuya switch off."""
         self._device.set_status(False, self._switchid)
-    
-    def update(self):
-        retry_limit = 3
+
+    def _get_status(self):
         '''
         Tuya device tends to send back a RST,ACK on first try
         which kills the TCP connection. It seems sporadic since
         occassionally the status update works fine on the first
         try. Theory is the device has an issue with HA constantly
         querying it or the connection not being closed properly.
-        
+
         Regardless, it seems to work consistently with this workaround
         in place.
         '''
-        for i in range(retry_limit):
+        for _ in range(STATUS_UPDATE_RETRY_LIMIT):
             try:
-                self._status = self._device.status()
-                self._state = self._status['dps']['1']
-                return
-            except:
-                if i+1 == retry_limit:
-                    raise ConnectionRefusedError("Failed communicating with outlet after 3 tries")
-                else:
-                    logging.getLogger(__name__).warn("Try: {}/{} - failed to update information for {}".format(i+1, retry_limit, self._device))
-                    continue
+                return self._device.status()
+            except ConnectionResetError:
+                pass
 
+        raise ConnectionRefusedError(
+            "Failed communicating with outlet after {} tries".format(STATUS_UPDATE_RETRY_LIMIT))
+
+    def update(self):
+        status = self._get_status()
+        self._status = status
+        self._state = status['dps']['1']
