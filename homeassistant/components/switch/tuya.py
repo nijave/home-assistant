@@ -70,9 +70,12 @@ class TuyaDevice(SwitchDevice):
     @property
     def device_state_attributes(self):
         attrs = {}
-        attrs[ATTR_CURRENT] = "{} mA".format(self._status['dps']['4'])
-        attrs[ATTR_CURRENT_CONSUMPTION] = "{} W".format(self._status['dps']['5']/10)
-        attrs[ATTR_VOLTAGE] = "{} V".format(self._status['dps']['6']/10)
+        try:
+            attrs[ATTR_CURRENT] = "{} mA".format(self._status['dps']['4'])
+            attrs[ATTR_CURRENT_CONSUMPTION] = "{} W".format(self._status['dps']['5']/10)
+            attrs[ATTR_VOLTAGE] = "{} V".format(self._status['dps']['6']/10)
+        except KeyError:
+            pass
         return attrs
 
     def turn_on(self, **kwargs):
