@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.components.switch import SwitchDevice, PLATFORM_SCHEMA
 from homeassistant.const import (CONF_NAME, CONF_HOST, CONF_ID)
 import homeassistant.helpers.config_validation as cv
+import logging
 
 REQUIREMENTS = ['pytuya==1.0']
 
@@ -78,13 +79,9 @@ class TuyaDevice(SwitchDevice):
             pass
         return attrs
 
-    def turn_on(self, **kwargs):
-        """Turn Tuya switch on."""
-        self._device.set_status(True, self._switchid)
-
-    def turn_off(self, **kwargs):
-        """Turn Tuya switch off."""
-        self._device.set_status(False, self._switchid)
+    def _set_status(self, status):
+        logging.getLogger(__name__).info("Setting status of {} to {}".format(self._name, status))
+        self._device.set_status(status, self._switchid)
 
     def _get_status(self):
         '''
@@ -97,14 +94,23 @@ class TuyaDevice(SwitchDevice):
         Regardless, it seems to work consistently with this workaround
         in place.
         '''
+        logging.getLogger(__name__).info("Getting status for {}".format(self._name))
         for _ in range(STATUS_UPDATE_RETRY_LIMIT):
             try:
                 return self._device.status()
             except ConnectionResetError:
-                pass
+                logging.getLogger(__name__).warn("Failed to get status for {}".format(self._name))
 
         raise ConnectionRefusedError(
             "Failed communicating with outlet after {} tries".format(STATUS_UPDATE_RETRY_LIMIT))
+
+    def turn_on(self, **kwargs):
+        """Turn Tuya switch on."""
+        self._set_status(True)
+
+    def turn_off(self, **kwargs):
+        """Turn Tuya switch off."""
+        self._set_status(False)
 
     def update(self):
         status = self._get_status()
