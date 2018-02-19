@@ -20,9 +20,7 @@ from homeassistant.const import (
 import homeassistant.helpers.config_validation as cv
 import homeassistant.util.dt as dt_util
 
-# Do not upgrade to 1.0.2, it breaks a bunch of stuff
-# https://github.com/home-assistant/home-assistant/issues/10926
-REQUIREMENTS = ['pychromecast==0.8.2']
+REQUIREMENTS = ['pychromecast==1.0.3']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -188,7 +186,7 @@ class CastDevice(MediaPlayerDevice):
 
         images = self.media_status.images
 
-        return images[0].url if images else None
+        return images[0].url if images and images[0].url else None
 
     @property
     def media_title(self):
@@ -207,7 +205,7 @@ class CastDevice(MediaPlayerDevice):
 
     @property
     def media_album_artist(self):
-        """Album arist of current playing media (Music track only)."""
+        """Album artist of current playing media (Music track only)."""
         return self.media_status.album_artist if self.media_status else None
 
     @property

@@ -40,7 +40,7 @@ LIGHT_SCHEMA = vol.Schema({
     vol.Optional(CONF_ENTITY_PICTURE_TEMPLATE, default=None): cv.template,
     vol.Optional(CONF_LEVEL_ACTION, default=None): cv.SCRIPT_SCHEMA,
     vol.Optional(CONF_LEVEL_TEMPLATE, default=None): cv.template,
-    vol.Optional(CONF_FRIENDLY_NAME, default=None): cv.string,
+    vol.Optional(CONF_FRIENDLY_NAME): cv.string,
     vol.Optional(CONF_ENTITY_ID): cv.entity_ids
 })
 
@@ -237,7 +237,6 @@ class LightTemplate(Light):
     @asyncio.coroutine
     def async_update(self):
         """Update the state from the template."""
-        print("ASYNC UPDATE")
         if self._template is not None:
             try:
                 state = self._template.async_render().lower()
@@ -262,7 +261,7 @@ class LightTemplate(Light):
                 self._state = None
 
             if 0 <= int(brightness) <= 255:
-                self._brightness = brightness
+                self._brightness = int(brightness)
             else:
                 _LOGGER.error(
                     'Received invalid brightness : %s' +
