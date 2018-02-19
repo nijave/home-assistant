@@ -10,7 +10,7 @@ from homeassistant.const import (CONF_NAME, CONF_HOST, CONF_ID)
 import homeassistant.helpers.config_validation as cv
 import logging
 
-REQUIREMENTS = ['pytuya==1.0']
+REQUIREMENTS = ['pytuya==5.0']
 
 CONF_DEVICE_ID = 'device_id'
 CONF_LOCAL_KEY = 'local_key'
@@ -21,7 +21,7 @@ ATTR_CURRENT = 'current'
 ATTR_CURRENT_CONSUMPTION = 'current_consumption'
 ATTR_VOLTAGE = 'voltage'
 
-STATUS_UPDATE_RETRY_LIMIT = 3
+UPDATE_RETRY_LIMIT = 3
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NAME): cv.string,
@@ -81,7 +81,11 @@ class TuyaDevice(SwitchDevice):
 
     def _set_status(self, status):
         logging.getLogger(__name__).info("Setting status of {} to {}".format(self._name, status))
-        self._device.set_status(status, self._switchid)
+        for _ in range(UPDATE_RETRY_LIMIT):
+            try:
+                return self._device.set_status(status, self._switchid)
+            except ConnectionResetError:
+                logging.getLogger(__name__).warn("Failed to set status for {}".format(self._name))
 
     def _get_status(self):
         '''
@@ -95,14 +99,14 @@ class TuyaDevice(SwitchDevice):
         in place.
         '''
         logging.getLogger(__name__).info("Getting status for {}".format(self._name))
-        for _ in range(STATUS_UPDATE_RETRY_LIMIT):
+        for _ in range(UPDATE_RETRY_LIMIT):
             try:
                 return self._device.status()
             except ConnectionResetError:
                 logging.getLogger(__name__).warn("Failed to get status for {}".format(self._name))
 
         raise ConnectionRefusedError(
-            "Failed communicating with outlet after {} tries".format(STATUS_UPDATE_RETRY_LIMIT))
+            "Failed communicating with outlet after {} tries".format(UPDATE_RETRY_LIMIT))
 
     def turn_on(self, **kwargs):
         """Turn Tuya switch on."""
